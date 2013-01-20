@@ -13,6 +13,10 @@ JsSIP.utils = {
     }
   },
 
+  isDecimal: function (num) {
+    return !isNaN(num) && (parseFloat(num) === parseInt(num,10));
+  },
+
   newTag: function() {
     return Math.random().toString(36).substr(2,JsSIP.c.TAG_LENGTH);
   },
