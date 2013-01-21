@@ -934,7 +934,6 @@ JsSIP.Session.prototype.cancel = function(reason) {
  *
  * @param {String|Number} tone
  * @param {Object} [options]
- * @param {Object} [eventHandlers]
  * @param {Array} [extraHeaders]
  */
 JsSIP.Session.prototype.sendDTMF = function(tone, options, extraHeaders) {
