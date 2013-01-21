@@ -937,14 +937,13 @@ JsSIP.Session.prototype.cancel = function(reason) {
  * @param {Object} [eventHandlers]
  * @param {Array} [extraHeaders]
  */
-JsSIP.Session.prototype.sendDTMF = function(tone, options, eventHandlers, extraHeaders) {
+JsSIP.Session.prototype.sendDTMF = function(tone, options, extraHeaders) {
   var timer, interToneGap,
     possition = 0,
     self = this,
     ready = true;
 
   options = options || {};
-  eventHandlers = eventHandlers || {};
   extraHeaders = extraHeaders || [];
 
   // Check Session Status
@@ -973,7 +972,6 @@ JsSIP.Session.prototype.sendDTMF = function(tone, options, eventHandlers, extraH
 
   options = {
     duration: options.duration || null,
-    eventHandlers: eventHandlers,
     extraHeaders: extraHeaders
   };
 
@@ -1133,8 +1131,6 @@ JsSIP.Session.DTMF = function(session) {
 
   this.session = session;
   this.direction = null;
-  this.local_identity = null;
-  this.remote_identity = null;
   this.tone = null;
   this.duration = null;
 
@@ -1145,6 +1141,8 @@ JsSIP.Session.DTMF.prototype = new JsSIP.EventEmitter();
 
 JsSIP.Session.DTMF.prototype.send = function(options) {
   var request_sender, event, eventHandlers, extraHeaders;
+
+  this.direction = 'outgoing';
 
   // Check Session Status
   if (this.session.status !== JsSIP.c.SESSION_CONFIRMED && this.session.status !== JsSIP.c.SESSION_WAITING_FOR_ACK) {
@@ -1197,11 +1195,6 @@ JsSIP.Session.DTMF.prototype.send = function(options) {
   for (event in eventHandlers) {
     this.on(event, eventHandlers[event]);
   }
-
-  // DTMF parameter initialization
-  this.direction = 'outgoing';
-  this.local_identity = this.session.local_identity;
-  this.remote_identity = this.session.remote_identity;
 
   extraHeaders.push('Content-Type: application/dtmf-relay');
 
@@ -1286,14 +1279,14 @@ JsSIP.Session.DTMF.prototype.onTransportError = function() {
  * @private
  */
 JsSIP.Session.DTMF.prototype.init_incoming = function(request) {
-  var transaction, body,
+  var body,
     reg_tone = /^(Signal\s*?=\s*?)([0-9A-D#*]{1})(\s)?.*/,
     reg_duration = /^(Duration\s?=\s?)([0-9]{1,4})(\s)?.*/;
 
   this.direction = 'incoming';
   this.request = request;
-  this.local_identity = request.s('to').uri;
-  this.remote_identity = request.s('from').uri;
+
+  request.reply(200);
 
   if (request.body) {
     body = request.body.split('\r\n');
@@ -1302,60 +1295,18 @@ JsSIP.Session.DTMF.prototype.init_incoming = function(request) {
         this.tone = body[0].replace(reg_tone,"$2");
       }
       if (reg_duration.test(body[1])) {
-        this.duration = body[1].replace(reg_duration,"$2");
+        this.duration = parseInt(body[1].replace(reg_duration,"$2"), 10);
       }
     }
   }
 
   if (!this.tone || !this.duration) {
     console.log(JsSIP.c.LOG_INVITE_SESSION +'Invalid INFO DTMF received');
-    return;
-  }
-
-  this.session.emit('newDTMF', this.session, {
-    originator: 'remote',
-    dtmf: this,
-    request: request
-  });
-
-  transaction = this.session.ua.transactions.nist[request.via_branch];
-
-  if (transaction && (transaction.state === JsSIP.c.TRANSACTION_TRYING || transaction.state === JsSIP.c.TRANSACTION_PROCEEDING)) {
-    request.reply(200);
-  }
-};
-
-/**
- * 'Accept the incoming DTMF
- * Only valid for incoming DTMF's
- */
-JsSIP.Session.DTMF.prototype.accept = function() {
-  if (this.direction !== 'incoming') {
-    throw new JsSIP.exceptions.InvalidMethodError();
-  }
-
-  this.request.reply(200);
-};
-
-/**
- * Reject the incoming DTMF
- * Only valid for incoming DTMF's
- *
- * @param {Number} status_code
- * @param {String} [reason_phrase]
- */
-JsSIP.Session.DTMF.prototype.reject = function(status_code, reason_phrase) {
-  if (this.direction !== 'incoming') {
-    throw new JsSIP.exceptions.InvalidMethodError();
-  }
-
-  if (status_code) {
-    if ((status_code < 300 || status_code >= 700)) {
-      throw new JsSIP.exceptions.InvalidValueError();
-    } else {
-      this.request.reply(status_code, reason_phrase);
-    }
   } else {
-    this.request.reply(480);
+    this.session.emit('newDTMF', this.session, {
+      originator: 'remote',
+      dtmf: this,
+      request: request
+    });
   }
 };
